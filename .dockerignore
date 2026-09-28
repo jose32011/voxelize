@@ -1,0 +1,10 @@
+.git
+.github
+.cursor
+.vscode
+**/node_modules
+**/target
+**/dist
+**/pkg
+**/.pnpm-store
+**/.DS_Store

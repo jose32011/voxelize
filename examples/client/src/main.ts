@@ -26,14 +26,21 @@ VOXELIZE.configurePerfLogging(
 );
 
 const canvas = document.getElementById("main") as HTMLCanvasElement;
+const isTouchDevice =
+  navigator.maxTouchPoints > 0 &&
+  (window.matchMedia("(pointer: coarse)").matches ||
+    window.matchMedia("(hover: none)").matches);
+if (isTouchDevice) document.body.classList.add("touch-device");
 
 /* -------------------------------------------------------------------------- */
 /*                               VOXELIZE WORLD                               */
 /* -------------------------------------------------------------------------- */
 const world = new VOXELIZE.World({
   textureUnitDimension: 8,
-  // Sized for the local-lights benchmark scenes (10k registered emitters).
-  localLights: { maxRegisteredLights: 12288 },
+  localLights: {
+    maxRegisteredLights: isTouchDevice ? 1024 : 12288,
+    qualityTier: isTouchDevice ? "medium" : "high",
+  },
 });
 // actual world setup code handled later after network and world are initialized
 
@@ -144,16 +151,16 @@ world.sky.paint("sides", VOXELIZE.artFunctions.drawStars());
 const inputs = new VOXELIZE.Inputs<"menu" | "in-game" | "chat">();
 
 // To run around the world
-const controls = new VOXELIZE.RigidControls(
-  camera,
-  renderer.domElement,
-  world,
-  {
-    initialPosition: [0, 82, 0],
-    flyForce: 400,
-    // stepHeight: 1,
-  },
-);
+const ControlsClass = isTouchDevice
+  ? VOXELIZE.MobileRigidControls
+  : VOXELIZE.RigidControls;
+const controls = new ControlsClass(camera, renderer.domElement, world, {
+  initialPosition: [0, 82, 0],
+  flyForce: 400,
+  // stepHeight: 1,
+});
+const mobileControls =
+  controls instanceof VOXELIZE.MobileRigidControls ? controls : undefined;
 
 controls.connect(inputs, "in-game");
 
@@ -219,14 +226,29 @@ const HOTBAR_CONTENT = [0, 1, 5, 20, 50000, 13131, 45, 300, 1000, 500];
 const bar = new VOXELIZE.ItemSlots({
   verticalCount: 1,
   horizontalCount: HOTBAR_CONTENT.length,
+  slotWidth: isTouchDevice
+    ? Math.min(32, Math.max(22, Math.floor((window.innerWidth - 20) / 10) - 2))
+    : 50,
+  slotHeight: isTouchDevice
+    ? Math.min(32, Math.max(22, Math.floor((window.innerWidth - 20) / 10) - 2))
+    : 50,
+  slotGap: isTouchDevice ? 2 : 4,
   wrapperStyles: {
     left: "50%",
     transform: "translateX(-50%)",
+    bottom: isTouchDevice ? "calc(4px + env(safe-area-inset-bottom))" : "0",
   },
   scrollable: false,
 });
 
 document.body.appendChild(bar.element);
+bar.canvas.addEventListener("pointerdown", (event) => {
+  if (!mobileControls || event.pointerType !== "touch") return;
+  event.preventDefault();
+  event.stopPropagation();
+  const { row, col } = bar.getRowColFromEvent(event);
+  if (row !== -1 && col !== -1) bar.setFocused(row, col);
+});
 
 inputs.click(
   "middle",
@@ -316,6 +338,112 @@ inputs.click(
   },
   "in-game",
 );
+
+if (mobileControls) {
+  const moveStick = document.getElementById("move-stick") as HTMLDivElement;
+  const moveStickKnob = document.getElementById(
+    "move-stick-knob",
+  ) as HTMLDivElement;
+  let movePointerId: number | null = null;
+
+  const updateMovement = (event: PointerEvent) => {
+    const bounds = moveStick.getBoundingClientRect();
+    const centerX = bounds.left + bounds.width / 2;
+    const centerY = bounds.top + bounds.height / 2;
+    const dx = event.clientX - centerX;
+    const dy = event.clientY - centerY;
+    const radius = bounds.width * 0.36;
+    const distance = Math.hypot(dx, dy);
+    const scale = distance > radius ? radius / distance : 1;
+    const x = (dx * scale) / radius;
+    const y = (-dy * scale) / radius;
+
+    mobileControls.setMovementVector(x, y);
+    moveStickKnob.style.transform = `translate(${dx * scale}px, ${dy * scale}px)`;
+  };
+
+  const stopMovement = (event: PointerEvent) => {
+    if (event.pointerId !== movePointerId) return;
+    movePointerId = null;
+    mobileControls.setMovementVector(0, 0);
+    moveStickKnob.style.transform = "translate(0, 0)";
+  };
+
+  moveStick.addEventListener("pointerdown", (event) => {
+    if (movePointerId !== null) return;
+    event.preventDefault();
+    movePointerId = event.pointerId;
+    moveStick.setPointerCapture(event.pointerId);
+    updateMovement(event);
+  });
+  moveStick.addEventListener("pointermove", (event) => {
+    if (event.pointerId === movePointerId) updateMovement(event);
+  });
+  moveStick.addEventListener("pointerup", stopMovement);
+  moveStick.addEventListener("pointercancel", stopMovement);
+  moveStick.addEventListener("lostpointercapture", stopMovement);
+
+  let lookPointerId: number | null = null;
+  let lastLookX = 0;
+  let lastLookY = 0;
+  canvas.addEventListener("pointerdown", (event) => {
+    if (event.pointerType !== "touch" || lookPointerId !== null) return;
+    event.preventDefault();
+    lookPointerId = event.pointerId;
+    lastLookX = event.clientX;
+    lastLookY = event.clientY;
+    canvas.setPointerCapture(event.pointerId);
+  });
+  canvas.addEventListener("pointermove", (event) => {
+    if (event.pointerId !== lookPointerId) return;
+    mobileControls.setLookDirection(
+      event.clientX - lastLookX,
+      event.clientY - lastLookY,
+    );
+    lastLookX = event.clientX;
+    lastLookY = event.clientY;
+  });
+  const stopLooking = (event: PointerEvent) => {
+    if (event.pointerId === lookPointerId) lookPointerId = null;
+  };
+  canvas.addEventListener("pointerup", stopLooking);
+  canvas.addEventListener("pointercancel", stopLooking);
+  canvas.addEventListener("lostpointercapture", stopLooking);
+
+  const bindTouchAction = (
+    id: string,
+    onPress: () => void,
+    onRelease?: () => void,
+  ) => {
+    const button = document.getElementById(id) as HTMLButtonElement;
+    let activePointerId: number | null = null;
+    button.addEventListener("pointerdown", (event) => {
+      if (activePointerId !== null) return;
+      event.preventDefault();
+      event.stopPropagation();
+      activePointerId = event.pointerId;
+      button.setPointerCapture(event.pointerId);
+      onPress();
+    });
+
+    const release = (event: PointerEvent) => {
+      if (event.pointerId !== activePointerId) return;
+      activePointerId = null;
+      onRelease?.();
+    };
+    button.addEventListener("pointerup", release);
+    button.addEventListener("pointercancel", release);
+    button.addEventListener("lostpointercapture", release);
+  };
+
+  bindTouchAction("touch-break", bulkDestroy);
+  bindTouchAction("touch-place", bulkPlace);
+  bindTouchAction(
+    "touch-jump",
+    () => mobileControls.setJumping(true),
+    () => mobileControls.setJumping(false),
+  );
+}
 
 // Add a character to the control
 world.loader.loadTexture(LolImage, (texture) => {
@@ -1418,19 +1546,60 @@ network
 /* -------------------------------------------------------------------------- */
 /*                                UNSORTED CODE                               */
 /* -------------------------------------------------------------------------- */
-const BACKEND_SERVER_INSTANCE = new URL(window.location.href);
+const searchParams = new URLSearchParams(window.location.search);
+const BACKEND_SERVER_INSTANCE = new URL(
+  searchParams.get("server") ?? window.location.origin,
+);
 const VOXELIZE_LOCALSTORAGE_KEY = "voxelize-world";
 
 const currentWorldName =
-  new URLSearchParams(window.location.search).get("world") ??
+  searchParams.get("world") ??
   localStorage.getItem(VOXELIZE_LOCALSTORAGE_KEY) ??
   "terrain";
 
-if (BACKEND_SERVER_INSTANCE.origin.includes("localhost")) {
+if (!searchParams.has("server") && import.meta.env.DEV) {
   BACKEND_SERVER_INSTANCE.port = "4000";
 }
 
 const BACKEND_SERVER = BACKEND_SERVER_INSTANCE.toString();
+
+const inviteURL = new URL(window.location.href);
+inviteURL.searchParams.set("world", currentWorldName);
+if (BACKEND_SERVER_INSTANCE.origin !== window.location.origin) {
+  inviteURL.searchParams.set("server", BACKEND_SERVER);
+}
+
+const inviteToggle = document.getElementById(
+  "invite-toggle",
+) as HTMLButtonElement;
+const invitePanel = document.getElementById("invite-panel") as HTMLDivElement;
+const inviteLink = document.getElementById("invite-link") as HTMLInputElement;
+const inviteCopy = document.getElementById("invite-copy") as HTMLButtonElement;
+const inviteStatus = document.getElementById(
+  "invite-status",
+) as HTMLParagraphElement;
+inviteLink.value = inviteURL.toString();
+
+inviteToggle.addEventListener("click", () => {
+  const isExpanded = inviteToggle.getAttribute("aria-expanded") === "true";
+  inviteToggle.setAttribute("aria-expanded", String(!isExpanded));
+  invitePanel.hidden = isExpanded;
+});
+
+inviteCopy.addEventListener("click", async () => {
+  try {
+    if (!navigator.clipboard) {
+      throw new Error("Clipboard access requires a secure browser context.");
+    }
+    await navigator.clipboard.writeText(inviteLink.value);
+    inviteStatus.textContent = "Invite link copied.";
+  } catch (error) {
+    console.error("Could not copy invite link.", error);
+    inviteStatus.textContent = "Copy failed. Select the link above to copy it.";
+    inviteLink.focus();
+    inviteLink.select();
+  }
+});
 
 class Box extends VOXELIZE.Entity<{
   position: VOXELIZE.Coords3;

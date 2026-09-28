@@ -53,11 +53,18 @@ impl ChunkStage for LimitedStage {
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     let registry = setup_registry();
+    let port = match std::env::var("PORT") {
+        Ok(port) => port
+            .parse::<u16>()
+            .expect("PORT must be a valid TCP port number."),
+        Err(std::env::VarError::NotPresent) => 4000,
+        Err(error) => panic!("Could not read PORT: {error}"),
+    };
 
     let mut server = Server::new()
-        .port(4000)
+        .port(port)
         .secret("test")
-        // .serve("./examples/client/dist")
+        .serve("./examples/client/dist")
         .registry(&registry)
         .build();
 

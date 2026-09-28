@@ -3,7 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image" href="/logo.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
     <title>Voxelize Demo</title>
   </head>
   <body>
@@ -18,6 +21,27 @@
       <canvas id="main"></canvas>
       <video id="video" style="display: none" autoplay playsinline></video>
       <div id="crosshair"></div>
+      <div id="touch-controls" aria-label="Touch game controls">
+        <div id="move-stick" aria-label="Movement joystick">
+          <div id="move-stick-knob"></div>
+        </div>
+        <div id="touch-actions">
+          <button id="touch-break" type="button">Break</button>
+          <button id="touch-place" type="button">Place</button>
+          <button id="touch-jump" type="button">Jump</button>
+        </div>
+      </div>
+      <div id="invite">
+        <button id="invite-toggle" type="button" aria-expanded="false">
+          Invite
+        </button>
+        <div id="invite-panel" hidden>
+          <label for="invite-link">Share this world</label>
+          <input id="invite-link" type="url" readonly />
+          <button id="invite-copy" type="button">Copy link</button>
+          <p id="invite-status" role="status" aria-live="polite"></p>
+        </div>
+      </div>
       <ul id="biomes"></ul>
       <!-- <div id="chat">
         <ul id="chat-history"></ul>

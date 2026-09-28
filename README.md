@@ -136,6 +136,32 @@ Then open http://localhost:3000.
 
 I strongly recommend using Voxelize as a submodule of the workspace you're building.
 
+### Touch and online play
+
+The browser demo supports touch controls on phones and tablets as well as
+keyboard and mouse on PCs. Players share a world through the multiplayer server;
+use **Invite** in the demo to copy a link that joins the same world.
+
+#### Deploying the demo to Railway
+
+The repository includes a Railway Docker deployment that builds the client and
+Rust server together and serves both from one public web service. Create a
+Railway project from this repository and deploy it with the included
+`railway.toml`. Railway supplies `PORT`; the demo server binds to that port,
+serves the built client, and exposes `/health` as its health check. Generate a
+public Railway domain, open it over HTTPS, and use **Invite** to share the
+current world with other players. Browser WebSocket connections automatically
+use secure WebSockets (`wss`) through the Railway domain.
+
+For local testing, `pnpm demo` still serves the Vite client and local Rust
+server separately.
+
+This repository is a voxel engine demo rather than a packaged mobile app. The
+web client runs in modern mobile browsers; native app-store packaging and
+production authentication and persistent world storage are separate deployment
+work. The demo uses an open shared guest world and is not configured for
+private or authenticated player accounts.
+
 ## Packages
 
 ### npm

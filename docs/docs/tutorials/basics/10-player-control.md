@@ -25,6 +25,28 @@ rigidControls.connect(inputs);
 
 `connect` registers default movement keys (WASD, Space, Shift).
 
+## Touch Devices
+
+Use `MobileRigidControls` when the player is on a touch-first device. It keeps
+the same physics and player state as `RigidControls`, while accepting joystick,
+jump, and look input directly:
+
+```typescript
+const controls = new VOXELIZE.MobileRigidControls(
+  camera,
+  renderer.domElement,
+  world,
+);
+
+controls.setMovementVector(-0.5, 1); // left and forward
+controls.setJumping(true);
+controls.setLookDirection(deltaX, deltaY);
+```
+
+The browser demo detects coarse-pointer touch devices and supplies an on-screen
+joystick, look drag, jump, block actions, and a touch-selectable hotbar. On
+desktop it continues to use `RigidControls` and keyboard/mouse input.
+
 ## Update Loop
 
 ```javascript title="main.js"
