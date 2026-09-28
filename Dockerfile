@@ -16,7 +16,7 @@ RUN apt-get update \
 
 RUN npm install --global pnpm@10.9.0 \
     && rustup target add wasm32-unknown-unknown \
-    && cargo install wasm-pack --locked
+    && cargo install wasm-pack@0.14.1 --locked
 
 COPY . .
 
