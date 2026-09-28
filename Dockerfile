@@ -1,4 +1,4 @@
-FROM rust:1.90-bookworm AS build
+FROM rust:1.91-bookworm AS build
 
 ENV DEBIAN_FRONTEND=noninteractive
 WORKDIR /app
